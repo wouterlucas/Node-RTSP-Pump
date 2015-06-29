@@ -1,0 +1,26 @@
+{
+  "name": "Node RTSP pump",
+  "version": "0.1.0",
+  "description": "A node.js based RTSP pump",
+  "main": "pump.js",
+  "scripts": {
+    "start": "node pump.js"
+  },
+  "dependencies": {
+  },
+  "engines": {
+    "node": "0.12.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wouterlucas/Node-RTSP-pump"
+  },
+  "keywords": [
+    "node",
+    "RTSP",
+    "VLC",
+    "child process",
+    "video streaming"
+  ],
+  "license": "MIT"
+}
