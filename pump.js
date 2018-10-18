@@ -488,7 +488,7 @@ session = function() {
             var _programId  = topology[ that.serviceGroupId ].startProgramId + sessionIdList.length - 1;
 
             headers = {
-                'Session'   : that.sessionId,
+                'Session'   : that.sessionId + ';timeout=60',
                 'Tuning'    : 'frequency=' + _frequency + ';modulation=' + _modulation + ';symbol_rate=' + _symbolRate,
                 'Channel'   : 'Svcid=' + _programId
             };
