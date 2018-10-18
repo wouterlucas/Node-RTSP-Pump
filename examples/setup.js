@@ -11,7 +11,7 @@ setup+='Transport: RTP/AVP/UDP;unicast;destination=192.168.1.3;client_port=1234;
 setup+='\r\n';
 setup+='\r\n';
 
-var socket = net.connect(8554, '192.168.1.3', testClient);
+var socket = net.connect(5554, '127.0.0.1', testClient);
 
 function testClient(){
 	//wait for conncetion

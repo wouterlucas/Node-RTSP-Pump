@@ -9,7 +9,7 @@ teardown+='\r\n';
 teardown+='\r\n';
 
 
-var socket = net.connect(8554, '127.0.0.1', testClient);
+var socket = net.connect(554, '127.0.0.1', testClient);
 
 function testClient(){
 	//wait for conncetion

@@ -13,11 +13,22 @@ var spawn = require('child_process').spawn;
 var fs = require('fs');
 
 //the video file that this pump uses
-//var videofile = './data/Dutch_VisImp.ts';
-var videofile = '/Users/wouter/Desktop/test.ts';
+var videofile = '/Users/wouter/Desktop/SPTS2280.ts';
 
 //location of the streamer
 var streamerBin = '/Applications/VLC.app/Contents/MacOS/VLC';
+
+//network topology in case we have to be the SRM too
+var topology = {
+    '1001' : {
+        'ip'                : '192.168.2.200',
+        'startPort'         : 1000,
+        'frequency'         : '5620000', // Hz /1000
+        'startProgramId'    : 1,
+        'modulation'        : '256',
+        'symbolRate'        : '6952000'
+    }
+};
 
 //runtime variables
 var sessionIdList = []; //flat array of session id's that are active
@@ -43,7 +54,7 @@ function connectionHandler(conn) {
         console.log('Recieved: ' + data);
 
         if (data === '') {
-            console.log('Empty input received, ignoring it')
+            console.log('Empty input received, ignoring it');
         } else {
             //normalize our input
             var input = inputNormalizer(data);
@@ -99,12 +110,12 @@ function inputNormalizer(input) {
         }
 
         //we've already found a correct first line, lets continue
-        if (rtspMessageFound == true) {
+        if (rtspMessageFound === true) {
             //lets add this line
             processedData += lines[i];
 
             //check if we've got an empty line, it means we've finished parsing the headers/the message
-            if (lines[i] == '') {
+            if (lines[i] === '') {
                 //console.log('Found empty line, finishing up');
                 if (contentLengthFound === true) {
                     //console.log('Previous content-length was found, grabbing the body with content-length: ' + contentLength);
@@ -115,7 +126,7 @@ function inputNormalizer(input) {
                 //console.log('Done processing adding it to response array, found: ' + processedData);
 
                 //we're done, add our buffer to the results and see if there is more
-                responseArray.push(processedData)
+                responseArray.push(processedData);
                 //reset our variables
                 rtspMessageFound = false;
                 contentLengthFound = false;
@@ -129,7 +140,7 @@ function inputNormalizer(input) {
                 var splittedContentLength = lines[i].split(':');
 
                 //check if it is has a valid number
-                if (isNaN(splittedContentLength[1]) == false) {
+                if (isNaN(splittedContentLength[1]) === false) {
                     //it has a valid number, set our boolean to true
                     //contentLengthFound=true;
                     //set the length
@@ -204,7 +215,7 @@ function rtspParser(message, callback) {
     //check the method of our request object
     switch (request['method']) {
         case ('SETUP'):
-            //create session
+            //Setup create session
             var newSession = new session();
             newSession.create(request, function(response, id) {
 
@@ -251,10 +262,10 @@ function rtspParser(message, callback) {
                 }
             } else {
                 //it does not have a session header, must be the SRM
-                if (request['session_count'] == true) {
+                if (request['session_count'] === true) {
                     //return amount of sessions
                     response = rtspGenerator(request, 200, 'OK', {}, 'session_count: ' + sessionIdList.length);
-                } else if (request['session_list'] == true) {
+                } else if (request['session_list'] === true) {
                     //generate a list of sessions
                     var sessionlist = '';
 
@@ -342,11 +353,14 @@ session = function() {
     var that = this;
     that.assetLength = 60; //seconds
     that.curPosition = undefined;
+    that.destination = '';
     that.offset = undefined;
     that.speed = 1.00;
     that.sessionId = '';
-    that.destination = '';
+    that.serviceGroupId = null;
     that.streamer = undefined; //streamer handle
+    that.useInternalSRM = false;
+
 
     //CREATED -> PLAYING -> PAUSED -> STOP -> DESTROY
     that.state = undefined;
@@ -398,8 +412,32 @@ session = function() {
         //generate ID
         that.sessionId = new Date().getTime();
 
-        //generate destination from request
-        that.destination = request['transport']['destination'] + ':' + request['transport']['client_port'];
+        //check if SRM or Pump setup
+        // Setups to an SRM have a ServiceGroupId that denotes which QAM the client is connected too
+        // we need to generate the streaming address based on our own topology
+        if (request['transport'] !== undefined && request['transport']['ServiceGroupId'] !== undefined) {
+            that.useInternalSRM = true;
+            that.serviceGroupId = request['transport']['ServiceGroupId'];
+
+            if (topology[ that.serviceGroupId ] === undefined) {
+                //generate response
+                var errorResponse = rtspGenerator(request, 400, 'Bad request',{
+                    'Session': that.sessionId
+                });
+                console.log('[SESSION]: ' + that.sessionId + ' [STATE]: FAILED, ServiceGroupId not found in Topology');
+                callback(errorResponse, that.sessionId);
+                return;
+            }
+
+            // increase the port for every session that is active
+            var _ip = topology[ that.serviceGroupId ].ip;
+            var _port = topology[ that.serviceGroupId ].startPort + sessionIdList.length - 1;
+            that.destination = _ip + ':' + _port;
+        } else {
+            // SETUP is coming form an external SRM OR this is a UDP IPTV stream
+            // generate destination from request
+            that.destination = request['transport']['destination'] + ':' + request['transport']['client_port'];
+        }
 
         console.log('Method CREATE: State is ' + that.state + ', got create. Spawning VLC');
         
@@ -426,11 +464,9 @@ session = function() {
 
         //launch new process of streamer
         that.streamer = spawn(streamerBin, args);
-        //set it to utf8
         that.streamer.stdin.setEncoding('utf8');
         that.streamer.stdout.setEncoding('utf8');
         that.streamer.stderr.setEncoding('utf8');
-        //set our position to 1
         that.curPosition = 1;
 
         that.streamer.stdout.on('data', function(data) {
@@ -451,17 +487,31 @@ session = function() {
 
         //Pause it until we get a PLAY, send pause request to stdout
         that.streamer.stdin.write('pause\n');
-
-        //set the state
         that.state = 'PAUSED';
 
-        //generate response
-        var response = rtspGenerator(request, 200, 'OK', {
+        var headers = {
             'Session': that.sessionId
-        });
+        };
+
+        // if we are playing SRM, generate proper response with tuning parameters
+        if (that.useInternalSRM === true) {
+            var _frequency  = topology[ that.serviceGroupId ].frequency;
+            var _symbolRate = topology[ that.serviceGroupId ].symbolRate;
+            var _modulation = topology[ that.serviceGroupId ].modulation;
+            var _programId  = topology[ that.serviceGroupId ].startProgramId + sessionIdList.length - 1;
+
+            headers = {
+                'Session'   : that.sessionId,
+                'Tuning'    : 'frequency=' + _frequency + ';modulation=' + _modulation + ';symbol_rate=' + _symbolRate,
+                'Channel'   : 'Svcid=' + _programId
+            };
+        }
+
+        //generate response
+        var response = rtspGenerator(request, 200, 'OK', headers);
 
         //log it
-        console.log('[SESSION]: ' + that.sessionId + ' [STATE]: CREATED [POS]: ' + that.curPosition + '[SPEED]: ' + that.speed);
+        console.log('[SESSION]: ' + that.sessionId + ' [STATE]: CREATED [POS]: ' + that.curPosition + ' [SPEED]: ' + that.speed);
 
         //return our response + sessionId
         callback(response, that.sessionId);
@@ -551,7 +601,7 @@ session = function() {
                     console.log('Got Scale: ' + that.speed);
 
 
-                    if (that.speed = 1) {
+                    if (that.speed === 1) {
                         console.log('Sending VLC normal command');
                         that.streamer.stdin.write('normal\n');
                     } else if (that.speed > 1) {
@@ -569,8 +619,8 @@ session = function() {
                     var start = range.split(':')[0];
 
                     if (start != 'now') {
-                        that.curPostion = parseFloat(request['headers']['Range'])
-                        console.log('Sending seek to VLC')
+                        that.curPostion = parseFloat(request['headers']['Range']);
+                        console.log('Sending seek to VLC');
                         that.streamer.stdin.write('seek ' + that.curPosition + '\n');
                     }
                 }

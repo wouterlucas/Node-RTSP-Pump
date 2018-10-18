@@ -8,7 +8,7 @@ msg+='Content-Length: 13\n';
 msg+='\n';
 msg+='session_count';
 
-var socket = net.connect(5554, 'localhost', testClient);
+var socket = net.connect(5554, '127.0.0.1', testClient);
 
 function testClient(){
 	//wait for conncetion

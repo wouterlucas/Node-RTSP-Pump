@@ -6,10 +6,10 @@ var setup = 'SETUP rtsp://10.121.29.122/4e6616d9-df58-4fb4-ba32-0b784f903f6b?VOD
 setup+='CSeq: 1\n';
 setup+='User-Agent: TNT\n';
 setup+='Authorization: E62337FFC05C69F6\n';
-setup+='Transport: MP2T/DVBC/QAM;unicast;client_port=00000;ServiceGroupId=1002\n';
+setup+='Transport: MP2T/DVBC/QAM;unicast;client_port=00000;ServiceGroupId=1001\n';
 setup+='\n';
 
-var socket = net.connect(554, '10.121.29.122', testClient);
+var socket = net.connect(5554, '127.0.0.1', testClient);
 
 function testClient(){
 	//wait for conncetion

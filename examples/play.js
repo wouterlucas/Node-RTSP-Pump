@@ -9,7 +9,7 @@ msg+='Session: 144E3A20\n'
 msg+='\r\n';
 msg+='\r\n';
 
-var socket = net.connect(8554, '192.168.1.3', testClient);
+var socket = net.connect(5554, '127.0.0.1', testClient);
 
 function testClient(){
 	//wait for conncetion

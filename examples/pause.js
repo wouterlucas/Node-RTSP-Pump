@@ -7,7 +7,7 @@ msg+='CSeq: 5\n';
 msg+='Session: 1383775317862\n'
 msg+='\r\n';
 
-var socket = net.connect(5554, 'localhost', testClient);
+var socket = net.connect(5554, '127.0.0.1', testClient);
 
 function testClient(){
 	//wait for conncetion
