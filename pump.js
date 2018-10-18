@@ -11,24 +11,11 @@
 var net = require('net');
 var spawn = require('child_process').spawn;
 var fs = require('fs');
+var config = require('./config');
 
-//the video file that this pump uses
-var videofile = '/Users/wouter/Desktop/SPTS2280.ts';
-
-//location of the streamer
-var streamerBin = '/Applications/VLC.app/Contents/MacOS/VLC';
-
-//network topology in case we have to be the SRM too
-var topology = {
-    '1001' : {
-        'ip'                : '192.168.2.200',
-        'startPort'         : 1000,
-        'frequency'         : '5620000', // Hz /1000
-        'startProgramId'    : 1,
-        'modulation'        : '256',
-        'symbolRate'        : '6952000'
-    }
-};
+var videofile = config.videofile;
+var streamerBin = config.streamerBin;
+var topology = config.topology
 
 //runtime variables
 var sessionIdList = []; //flat array of session id's that are active
